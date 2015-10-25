@@ -121,7 +121,7 @@ cvErrorPct31 = round(errorData[errorData$Number.of.Variables==31,]$Error.Rate*10
 ## 
 ##     intersect, setdiff, setequal, union</code></pre>
 <pre class="r"><code>importantFactors = arrange(data.frame(varName=rownames(fitRf$importance), MeanDecreaseGini = fitRf$importance[,7]), desc(MeanDecreaseGini))[1:30,]</code></pre>
-<p>Now we will retrain the model using 100 trees and the top 30 most important variables (see Appendix 3 for details).</p>
+<p>Now we will retrain the model using 100 trees and the top 30 most important variables (see Appendix 3 for important variable details).</p>
 <pre class="r"><code>library(randomForest)
 plmTrainFinal = pmlTraining[,c(as.vector(importantFactors$varName),&quot;classe&quot;)]
 fitRfFinal = randomForest(plmTrainFinal[,-ncol(plmTrainFinal)],y=plmTrainFinal$classe, ntree=100, replace=FALSE, importance=TRUE)
@@ -130,7 +130,7 @@ OobErrorPctFinal = round(fitRfFinal$err.rate[nrow(fitRfFinal$err.rate),&quot;OOB
 <div id="final-model-summary" class="section level3">
 <h3>Final Model Summary</h3>
 <p>Now that we have trained our final model, we will check to make sure we have not inadvertantly sacrificed accuracy while refining the model. To do this we will compare the error rates for each refinement made to the model. We will also compare confusion matrices between the initial and final models as this gives a more fine grained view of the model accuracy and error.</p>
-<p>The initial model OOB (out-of-bag) error rate is 0.2956% which was obtained using 1000 trees and 52 independent (preditive) variables. Then when we used only 100 trees the OOB error rate increased slightly to 0.3669%. The final model in which we used 100 trees and the 30 most important variables had an OOB error rate of 0.4179%. The cross-validation error (K fold using 5 folds) with 100 trees and the 31 most important variables is 0.5402%.<br />These are reasonably close and even if we take the most conservative view and assume the out-of-sample error will be the cross validation error, we will still achieve an error rate of less than 1%.</p>
+<p>The initial model OOB (out-of-bag) error rate is 0.2956% which was obtained using 1000 trees and 52 independent (predictive) variables. Then when we used only 100 trees the OOB error rate increased slightly to 0.3669%. The final model in which we used 100 trees and the 30 most important variables had an OOB error rate of 0.4179%. The cross-validation error (K fold using 5 folds) with 100 trees and the 31 most important variables is 0.5402%.<br />These are reasonably close and even if we take the most conservative view and assume the out-of-sample error will be the cross validation error, we will still achieve an error rate of less than 1%.</p>
 <p>The following confusion matrices show how accurately the model classified each record in the training set.<br />Initial model confusion matrix:</p>
 <pre class="r"><code>kable(fitRf$confusion)</code></pre>
 <table>

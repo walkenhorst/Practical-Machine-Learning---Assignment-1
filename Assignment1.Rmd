@@ -86,7 +86,7 @@ library(knitr); library(dplyr);
 importantFactors = arrange(data.frame(varName=rownames(fitRf$importance), MeanDecreaseGini = fitRf$importance[,7]), desc(MeanDecreaseGini))[1:30,]
 ```
 
-Now we will retrain the model using 100 trees and the top 30 most important variables (see Appendix 3 for details).
+Now we will retrain the model using 100 trees and the top 30 most important variables (see Appendix 3 for important variable details).
 ```{r warning=FALSE, cache=TRUE}
 library(randomForest)
 plmTrainFinal = pmlTraining[,c(as.vector(importantFactors$varName),"classe")]
@@ -98,7 +98,7 @@ OobErrorPctFinal = round(fitRfFinal$err.rate[nrow(fitRfFinal$err.rate),"OOB"]*10
 Now that we have trained our final model, we will check to make sure we have not inadvertantly sacrificed accuracy while refining the model.
 To do this we will compare the error rates for each refinement made to the model. We will also compare confusion matrices between the initial and final models as this gives a more fine grained view of the model accuracy and error.  
 
-The initial model OOB (out-of-bag) error rate is `r OobErrorPct`% which was obtained using 1000 trees and 52 independent (preditive) variables.
+The initial model OOB (out-of-bag) error rate is `r OobErrorPct`% which was obtained using 1000 trees and 52 independent (predictive) variables.
 Then when we used only 100 trees the OOB error rate increased slightly to `r OobErrorPct100`%.
 The final model in which we used 100 trees and the 30 most important variables had an OOB error rate of `r OobErrorPctFinal`%. The cross-validation error (K fold using 5 folds) with 100 trees and the 31 most important variables is `r cvErrorPct31`%.  
 These are reasonably close and even if we take the most conservative view and assume the out-of-sample error will be the cross validation error, we will still achieve an error rate of less than 1%.
