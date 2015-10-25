@@ -20,7 +20,6 @@ Further information on Random Forests was found here: [https://www.stat.berkeley
 First we read in and explore the data.
 
 ```{r warning=FALSE, message=FALSE}
-#setwd("E:\\Users\\Jiz\\Documents\\Study\\Coursera\\Data Science Specialisation\\8. Practical Machine Learning\\Assignment")
 pmlTraining = read.csv("pml-training.csv")
 max_roll_belt_tw1 = pmlTraining[24,"max_roll_belt"]
 recalc_max_roll_belt_tw1 = max(pmlTraining[1:24,"roll_belt"])

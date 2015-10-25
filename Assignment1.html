@@ -67,8 +67,7 @@ if (window.hljs && document.readyState && document.readyState === "complete") {
 <div id="data-exploration" class="section level2">
 <h2>Data Exploration</h2>
 <p>First we read in and explore the data.</p>
-<pre class="r"><code>#setwd(&quot;E:\\Users\\Jiz\\Documents\\Study\\Coursera\\Data Science Specialisation\\8. Practical Machine Learning\\Assignment&quot;)
-pmlTraining = read.csv(&quot;pml-training.csv&quot;)
+<pre class="r"><code>pmlTraining = read.csv(&quot;pml-training.csv&quot;)
 max_roll_belt_tw1 = pmlTraining[24,&quot;max_roll_belt&quot;]
 recalc_max_roll_belt_tw1 = max(pmlTraining[1:24,&quot;roll_belt&quot;])</code></pre>
 <p>We can see in Appendix 1 that many of the variables are summary variables, and are only computed once at the end of each time window.<br />We can also see that some of the summary variables are not correct, and appear to be switched around. E.g. max_roll_belt for the first time window (row 24) contains the value -94.3, but if we calculate this value ourselves, we get 1.6. The value -94.3 looks more like the value for max_yaw_belt.<br />The summary variables are also not populated for the test data set so cannot be used to make predictions unless we derive them ourselves.<br />Thus we will ignore the summary variables (and other variables we can’t use to predict such as user_name and timestamp fields) and attempt to use the time point data to train our machine learning algorithm.</p>
