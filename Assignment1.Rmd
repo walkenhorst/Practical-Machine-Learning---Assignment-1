@@ -1,0 +1,155 @@
+---
+title: "Practical Machine Learning - Assignment 1"
+author: "Joseph Walkenhorst"
+date: "Sunday, October 25, 2015"
+output: html_document
+---
+
+##Executive Summary
+In this paper I set out to build a model to detect whether a certain exercise - barbell lifts - is being performed correctly given information from a variety of movement sensors attached to the test subject's body.  
+What I found was that I could obtain a high level of accuracy by training a random forest model with the raw sensor data.  
+During model training, error rates were estimated using out-of-bag error rates (given as part of the random forest training algorithm) and K-fold cross validation to give an accurate estimate of out-of-sample error rates.  
+The final model has an error rate of less than 1% and correctly predicts which way the exercise is being done for all of the test samples.  
+
+The data for this assignment has been sourced from here: [http://groupware.les.inf.puc-rio.br/har](http://groupware.les.inf.puc-rio.br/har).  
+
+Further information on Random Forests was found here: [https://www.stat.berkeley.edu/~breiman/RandomForests/cc_home.htm](https://www.stat.berkeley.edu/~breiman/RandomForests/cc_home.htm#ooberr).
+
+
+##Data Exploration
+First we read in and explore the data.
+
+```{r warning=FALSE, message=FALSE}
+#setwd("E:\\Users\\Jiz\\Documents\\Study\\Coursera\\Data Science Specialisation\\8. Practical Machine Learning\\Assignment")
+pmlTraining = read.csv("pml-training.csv")
+max_roll_belt_tw1 = pmlTraining[24,"max_roll_belt"]
+recalc_max_roll_belt_tw1 = max(pmlTraining[1:24,"roll_belt"])
+```
+We can see in Appendix 1 that many of the variables are summary variables, and are only computed once at the end of each time window.  
+We can also see that some of the summary variables are not correct, and appear to be switched around. E.g. max_roll_belt for the first time window (row 24) contains the value `r max_roll_belt_tw1`, but if we calculate this value ourselves, we get `r recalc_max_roll_belt_tw1`. The value `r max_roll_belt_tw1` looks more like the value for max_yaw_belt.  
+The summary variables are also not populated for the test data set so cannot be used to make predictions unless we derive them ourselves.  
+Thus we will ignore the summary variables (and other variables we can't use to predict such as user_name and timestamp fields) and attempt to use the time point data to train our machine learning algorithm.
+
+```{r warning=FALSE}
+pmlTrainRaw = pmlTraining[,c(8:11,37:49,60:68,84:86,102,113:124,140,151:160)]
+#check for fields containing NAs
+naFields = sapply(pmlTrainRaw, function(x) {any(is.na(x))})
+colnames(pmlTrainRaw[,naFields])
+```
+None of the remaining fields contain NA values, so we don't need to perform any imputation.
+
+
+##Training a Model
+In this section, I'll train a random forest model with a large number of trees and all of the remaining variables left after the filtering done in the Data Exploration section above.  
+We can then assess the number of trees required to achieve a sufficiently low error rate, and the variables to include based on their importance (as computed by the randomForest algorithm).
+
+###Number of Trees
+In order to determine the optimal number of trees (accuracy vs performance), we need to understand how the error rate changes with the number of trees. First we will fit a random forest with 1000 trees and look at the out-of-bag error rate.
+```{r warning=FALSE, cache=TRUE, message=FALSE}
+library(randomForest)
+set.seed(1234)
+fitRf = randomForest(x=pmlTrainRaw[,1:52],y=pmlTrainRaw$classe, ntree=1000, replace=FALSE, importance=TRUE)
+OobErrorPct = round(fitRf$err.rate[nrow(fitRf$err.rate),"OOB"]*100,4)
+```
+The out-of-bag error rate for 1000 trees is `r OobErrorPct`% which is quite low.  
+The out-of-bag error rate for the randomForest function is computed by taking stratified samples (samples which each have similar proportions of the dependent variable classes) of the data and using all of the samples apart from 1 to train the data, the 1 remaining sample is called the out-of-bag sample and is used to estimate error. Note that I have chosen to turn bootstrapping off (replace=FALSE) to ensure error rates are not under-estimated.
+
+If we now plot the error rates, we can see how the error rate changes as the number of trees increases:
+```{r warning=FALSE}
+plot(x=1:nrow(fitRf$err.rate),y=fitRf$err.rate[,"OOB"], col="red" , log="x", ylab="OOB error rate", xlab="Number of trees")
+title(main="OOB Error Rates per Number of Trees")
+OobErrorPct100 = round(fitRf$err.rate[100,"OOB"]*100,4)
+```
+It can be seen that the error rate after training 100 trees (`r OobErrorPct100`%) is very close to the error rate after training 1000 trees, but will give significantly better performance in training and predictions.  
+
+
+###Variable Selection and Cross Validation
+In order to select the optimal number of variables, we will assess the relationship between the number of variables used and the error rate obtained and determine the number of variables required to reduce the error rate to an acceptable level.
+We will estimated the out-of-sample error for different numbers of variables by re-training a random forest using K-fold cross validation for each number of variables that we want to assess the error rate for.
+```{r warning=FALSE, cache=TRUE}
+library(randomForest); library(dplyr);
+cvFit = rfcv(trainx=pmlTrainRaw[,1:52],trainy=pmlTrainRaw$classe, cv.fold=5, step=0.9, ntree=100, replace=FALSE)
+```
+
+Now we will plot the cross-validation error rates obtained using varying numbers of independent variables.
+```{r}
+plot(cvFit$n.var, cvFit$error.cv, log="x", type="o", lwd=2, xlab="Number of variables", ylab="Error rate")
+title(main="Error per Number of Variables Used")
+errorData = data.frame("Number of Variables"=cvFit$n.var, "Error Rate"=cvFit$error.cv)
+cvErrorPct31 = round(errorData[errorData$Number.of.Variables==31,]$Error.Rate*100,4)
+```
+
+From the above we can see that we get very little benefit from including more than 30 variables (see Appendix 2 for details), as 31 variables gives an error of `r cvErrorPct31`%.
+
+Now we will look at the most important variables from our original model and select the top 30 variables to use in our refined model.
+```{r warning=FALSE}
+library(knitr); library(dplyr);
+importantFactors = arrange(data.frame(varName=rownames(fitRf$importance), MeanDecreaseGini = fitRf$importance[,7]), desc(MeanDecreaseGini))[1:30,]
+```
+
+Now we will retrain the model using 100 trees and the top 30 most important variables (see Appendix 3 for details).
+```{r warning=FALSE, cache=TRUE}
+library(randomForest)
+plmTrainFinal = pmlTraining[,c(as.vector(importantFactors$varName),"classe")]
+fitRfFinal = randomForest(plmTrainFinal[,-ncol(plmTrainFinal)],y=plmTrainFinal$classe, ntree=100, replace=FALSE, importance=TRUE)
+OobErrorPctFinal = round(fitRfFinal$err.rate[nrow(fitRfFinal$err.rate),"OOB"]*100,4)
+```
+
+###Final Model Summary
+Now that we have trained our final model, we will check to make sure we have not inadvertantly sacrificed accuracy while refining the model.
+To do this we will compare the error rates for each refinement made to the model. We will also compare confusion matrices between the initial and final models as this gives a more fine grained view of the model accuracy and error.  
+
+The initial model OOB (out-of-bag) error rate is `r OobErrorPct`% which was obtained using 1000 trees and 52 independent (preditive) variables.
+Then when we used only 100 trees the OOB error rate increased slightly to `r OobErrorPct100`%.
+The final model in which we used 100 trees and the 30 most important variables had an OOB error rate of `r OobErrorPctFinal`%. The cross-validation error (K fold using 5 folds) with 100 trees and the 31 most important variables is `r cvErrorPct31`%.  
+These are reasonably close and even if we take the most conservative view and assume the out-of-sample error will be the cross validation error, we will still achieve an error rate of less than 1%.
+
+The following confusion matrices show how accurately the model classified each record in the training set.  
+Initial model confusion matrix:
+```{r warning=FALSE}
+kable(fitRf$confusion)
+```
+
+Final model confusion matrix:
+```{r warning=FALSE}
+kable(fitRfFinal$confusion)
+```
+
+The confusion matrices and class error rates are fairly similar between the initial and final models, meaning our optimisation has worked and that we have maintained an acceptable level of accuracy in our final model.  
+The final model error rate is `r OobErrorPctFinal`% and the cross validation error when using 31 variables is `r cvErrorPct31`%. Taking the worst of these 2 values, we should see an error rate in our test set of around `r cvErrorPct31`%.
+
+Lastly, the model was used to detect (predict) the excercise method for the 20 records in the test set, and obtained 100% accuracy in detecting the method used to perform the barbell lifts. See Appendix 4 for the predictions.
+
+\pagebreak
+
+###Appendix 1 - Field Names List
+```{r}
+library(knitr)
+colnames(pmlTraining)
+head(pmlTraining[,8:20],n=24)
+```
+
+\pagebreak
+
+###Appendix 2 - Cross Validation Error Rates
+```{r}
+kable(errorData)
+```
+
+\pagebreak
+
+###Appendix 3 - Important Factors
+```{r}
+kable(importantFactors)
+```
+
+\pagebreak
+
+###Appendix 4 - Prediction Results for the Test Data Set
+Following are the predictions my algorithm made for the test set.
+```{r warning=FALSE, cache=TRUE}
+pmlTest = read.csv("pml-testing.csv")
+pmlTestFinal = pmlTest[,as.vector(importantFactors$varName)]
+predict(fitRfFinal, newdata = pmlTestFinal)
+```
+
